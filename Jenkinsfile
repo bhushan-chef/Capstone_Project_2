@@ -15,11 +15,11 @@ pipeline {
         }
 
         stage('Execute Capstone Test Suite') {
-            steps {
-                echo 'Running the Parallel TestNG Suite via Maven...'
-                // This triggers the testng.xml file we created earlier
-                sh 'mvn clean test'
-            }
+              steps {
+                    echo 'Running the Parallel TestNG Suite via Maven...'
+                        // Changed from 'sh' to 'bat' for Windows execution
+                    bat 'mvn clean test'
+              }
             post {
                 always {
                     echo 'Collecting Artifacts (Screenshots, Logs, Traces)...'
