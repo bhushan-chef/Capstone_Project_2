@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Capstone Automation Suite" parallel="classes" thread-count="3">
+
+    <listeners>
+        <listener class-name="com.expandtesting.utils.RetryListener"/>
+    </listeners>
+
+    <test name="ExpandTesting E2E and UI Tests">
+        <packages>
+            <package name="com.expandtesting.tests.ui"/>
+            <package name="com.expandtesting.tests.e2e"/>
+        </packages>
+    </test>
+</suite>
