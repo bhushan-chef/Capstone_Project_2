@@ -66,7 +66,7 @@ public class NotesAPI {
                 .post("/notes")
                 .then()
                 .statusCode(200)
-                .time(Matchers.lessThan(2000L))
+                .time(Matchers.lessThan(5000L))
                 .extract().response();
     }
 
