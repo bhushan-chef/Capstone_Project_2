@@ -8,6 +8,7 @@ pipeline {
 
     environment {
         CI = 'true'
+        JAVA_HOME = 'C:\\Program Files\\Java\\jdk-24'
     }
 
     stages {
@@ -22,16 +23,13 @@ pipeline {
         stage('Build & Run Tests') {
             steps {
                 echo 'Running Capstone Test Suite via Maven...'
-                sh 'mvn clean test'
+                bat 'mvn test'
             }
             post {
                 always {
                     echo 'Collecting test artifacts...'
-                    archiveArtifacts artifacts: '''
-                        target/surefire-reports/**,
-                        target/allure-results/**,
-                        target/screenshots/**
-                    ''', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'target/surefire-reports/**, target/allure-results/**, target/screenshots/**',
+                        allowEmptyArchive: true
                 }
             }
         }
@@ -39,16 +37,13 @@ pipeline {
         stage('Generate Allure Report') {
             steps {
                 echo 'Generating Allure HTML Report...'
-                sh '''
-                    .allure/allure-2.20.1/bin/allure generate target/allure-results \
-                    --clean -o target/allure-report
-                '''
+                bat '.allure\\allure-2.20.1\\bin\\allure.bat generate target\\allure-results --clean -o target\\allure-report'
             }
             post {
                 always {
                     archiveArtifacts artifacts: 'target/allure-report/**',
                         allowEmptyArchive: true
-                    echo 'Allure report archived successfully.'
+                    echo 'Allure report archived.'
                 }
             }
         }
