@@ -7,16 +7,23 @@ import org.openqa.selenium.chrome.ChromeOptions;
 
 public class DriverManager {
 
-    // ThreadLocal ensures thread safety for parallel execution
     private static final ThreadLocal<WebDriver> driver = new ThreadLocal<>();
 
     public static void initDriver() {
         if (driver.get() == null) {
             WebDriverManager.chromedriver().setup();
 
-            var options = new ChromeOptions();
+            ChromeOptions options = new ChromeOptions();
             options.addArguments("--start-maximized");
-            // options.addArguments("--headless=new"); // We will uncomment this later for the CI/CD pipeline requirement
+            options.addArguments("--disable-notifications");
+            options.addArguments("--remote-allow-origins=*");
+
+            // Automatically headless when running in CI (Jenkins sets CI=true)
+            if ("true".equalsIgnoreCase(System.getenv("CI"))) {
+                options.addArguments("--headless=new");
+                options.addArguments("--no-sandbox");
+                options.addArguments("--disable-dev-shm-usage");
+            }
 
             driver.set(new ChromeDriver(options));
         }

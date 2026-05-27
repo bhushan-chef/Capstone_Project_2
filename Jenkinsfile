@@ -6,43 +6,73 @@ pipeline {
         jdk 'JDK24'
     }
 
+    environment {
+        CI = 'true'
+    }
+
     stages {
+
         stage('Checkout Code') {
             steps {
-                // Pulls the latest code from your GitHub repository
+                echo 'Pulling latest code from repository...'
                 checkout scm
             }
         }
 
-        stage('Execute Capstone Test Suite') {
+        stage('Build & Run Tests') {
             steps {
-                echo 'Running the Parallel TestNG Suite via Maven...'
-                // Changed from 'sh' to 'bat' for Windows execution
-                bat 'mvn clean test'
+                echo 'Running Capstone Test Suite via Maven...'
+                sh 'mvn clean test'
             }
             post {
                 always {
-                    echo 'Collecting Artifacts (Screenshots, Logs, Traces)...'
-                    // Archives test results and any screenshots your framework takes on failure
-                    archiveArtifacts artifacts: 'target/surefire-reports/**, target/allure-results/**', allowEmptyArchive: true
+                    echo 'Collecting test artifacts...'
+                    archiveArtifacts artifacts: '''
+                        target/surefire-reports/**,
+                        target/allure-results/**,
+                        target/screenshots/**
+                    ''', allowEmptyArchive: true
                 }
             }
         }
 
-        stage('Publish Allure HTML Report') {
+        stage('Generate Allure Report') {
             steps {
-                // Bypassing the missing Jenkins plugin since the report was already generated locally
-                echo 'Tests passed successfully! Allure report generation skipped on server.'
+                echo 'Generating Allure HTML Report...'
+                sh '''
+                    .allure/allure-2.20.1/bin/allure generate target/allure-results \
+                    --clean -o target/allure-report
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'target/allure-report/**',
+                        allowEmptyArchive: true
+                    echo 'Allure report archived successfully.'
+                }
             }
         }
+
+        stage('Publish Test Summary') {
+            steps {
+                echo 'Publishing surefire XML results...'
+                junit testResults: 'target/surefire-reports/*.xml',
+                      allowEmptyResults: true
+            }
+        }
+
     }
 
     post {
         success {
-            echo 'Capstone Execution Passed! All tests are green.'
+            echo '✅ All tests passed! Capstone submission is ready.'
         }
         failure {
-            echo 'Capstone Execution Failed! Check the Allure Report for defect details.'
+            echo '❌ Some tests failed. Check Allure report for details.'
+        }
+        always {
+            echo 'Pipeline finished. Cleaning up workspace...'
+            cleanWs()
         }
     }
 }

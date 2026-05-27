@@ -1,9 +1,11 @@
 package com.expandtesting.tests.e2e;
 
-import com.expandtesting.api.NotesAPI;
 import com.expandtesting.base.BaseTest;
+import com.expandtesting.config.ConfigReader;
 import com.expandtesting.pages.DashboardPage;
 import com.expandtesting.pages.LoginPage;
+import com.expandtesting.tests.api.NotesAPI;
+import io.qameta.allure.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.Assert;
@@ -13,57 +15,133 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+@Epic("Notes App - Hybrid E2E Testing")
+@Feature("UI and API Synchronization")
 public class HybridSyncTest extends BaseTest {
 
-    @Test(description = "E2E: Create note in UI -> Verify in API -> Delete via API -> Verify UI update")
-    public void testUiApiDataConsistency() {
-        // Test Data (Make sure your real credentials are here!)
-        String email = "bhushan-test@example.com";
-        String password = "Capgemini123!";
-        String category = "Work";
-        String title = "Capstone Integration Note " + System.currentTimeMillis();
-        String description = "Testing hybrid sync capabilities.";
+    // ── TC-E2E-01 ── POSITIVE ─────────────────────────────────────────────────
+    @Test(description = "TC-E2E-01: Note created in UI appears in API GET /notes response")
+    @Story("FR-05: UI-created note must appear in API")
+    @Severity(SeverityLevel.CRITICAL)
+    public void testNoteCreatedInUiAppearsInApi() {
+        String email    = ConfigReader.getEmail();
+        String password = ConfigReader.getPassword();
+        String title    = "E2E Note TC01 " + System.currentTimeMillis();
 
-        // 1. UI STEP: Login and Create Note
-        var loginPage = new LoginPage(driver);
+        // 1. UI: Login and create note
+        LoginPage loginPage = new LoginPage(driver);
         loginPage.navigateToLogin();
         loginPage.performLogin(email, password);
 
-        // WAIT FOR THE DASHBOARD TO LOAD
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         wait.until(ExpectedConditions.not(ExpectedConditions.urlContains("login")));
 
-        var dashboardPage = new DashboardPage(driver);
-        dashboardPage.createNote(category, title, description);
-
-        // --- THE FIX FOR THE SYNC BUG ---
-        // Force the browser to refresh and fetch the latest backend data immediately to bypass UI lag
+        new DashboardPage(driver).createNote("Work", title, "E2E sync test TC01");
         driver.navigate().refresh();
 
-        Assert.assertTrue(dashboardPage.isNoteDisplayed(title), "UI check failed: Note not visible on dashboard.");
+        // 2. API: Verify note exists in backend
+        NotesAPI notesAPI = new NotesAPI(email, password);
+        List<Map<String, Object>> allNotes = notesAPI.getAllNotes().jsonPath().getList("data");
 
-        // 2. API STEP: Fetch notes and verify the UI-created note exists in the database
-        var notesApi = new NotesAPI(email, password);
-        var apiResponse = notesApi.getAllNotes();
+        boolean foundInApi = allNotes.stream()
+                .anyMatch(n -> title.equals(n.get("title")));
 
-        // Extract the notes list and find our specific note ID
-        List<Map<String, Object>> allNotes = apiResponse.jsonPath().getList("data");
-        String createdNoteId = null;
+        Assert.assertTrue(foundInApi,
+                "TC-E2E-01 FAILED: Note created in UI was not found in API response.");
 
-        for (Map<String, Object> note : allNotes) {
-            if (title.equals(note.get("title"))) {
-                createdNoteId = (String) note.get("id");
-                break;
-            }
-        }
+        // Cleanup
+        String noteId = allNotes.stream()
+                .filter(n -> title.equals(n.get("title")))
+                .map(n -> (String) n.get("id"))
+                .findFirst().orElse(null);
+        if (noteId != null) notesAPI.deleteNoteById(noteId);
+    }
 
-        Assert.assertNotNull(createdNoteId, "API check failed: Note created in UI was not found in API response.");
+    // ── TC-E2E-02 ── POSITIVE ─────────────────────────────────────────────────
+    @Test(description = "TC-E2E-02: Note deleted via API disappears from UI")
+    @Story("FR-06 + FR-07: Delete note via API, deleted note disappears from UI")
+    @Severity(SeverityLevel.CRITICAL)
+    public void testNoteDeletedViaApiDisappearsFromUi() {
+        String email    = ConfigReader.getEmail();
+        String password = ConfigReader.getPassword();
+        String title    = "E2E Note TC02 " + System.currentTimeMillis();
 
-        // 3. API STEP: Delete the note via backend
-        notesApi.deleteNoteById(createdNoteId);
+        // 1. UI: Login and create note
+        LoginPage loginPage = new LoginPage(driver);
+        loginPage.navigateToLogin();
+        loginPage.performLogin(email, password);
 
-        // 4. UI STEP: Refresh the page and verify the note is gone
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        wait.until(ExpectedConditions.not(ExpectedConditions.urlContains("login")));
+
+        DashboardPage dashboardPage = new DashboardPage(driver);
+        dashboardPage.createNote("Personal", title, "E2E sync test TC02");
         driver.navigate().refresh();
-        Assert.assertFalse(dashboardPage.isNoteDisplayed(title), "E2E check failed: Deleted note still appears in UI.");
+
+        Assert.assertTrue(dashboardPage.isNoteDisplayed(title),
+                "TC-E2E-02 SETUP FAILED: Note not visible in UI before deletion.");
+
+        // 2. API: Find and delete the note
+        NotesAPI notesAPI = new NotesAPI(email, password);
+        List<Map<String, Object>> allNotes = notesAPI.getAllNotes().jsonPath().getList("data");
+
+        String noteId = allNotes.stream()
+                .filter(n -> title.equals(n.get("title")))
+                .map(n -> (String) n.get("id"))
+                .findFirst().orElse(null);
+
+        Assert.assertNotNull(noteId,
+                "TC-E2E-02 FAILED: Could not find note in API to delete.");
+
+        notesAPI.deleteNoteById(noteId);
+
+        // 3. UI: Refresh and verify note is gone
+        driver.navigate().refresh();
+        Assert.assertFalse(dashboardPage.isNoteDisplayed(title),
+                "TC-E2E-02 FAILED: Deleted note still appears in UI after API deletion.");
+    }
+
+    // ── TC-E2E-03 ── POSITIVE ─────────────────────────────────────────────────
+    @Test(description = "TC-E2E-03: UI and API note data fields match exactly")
+    @Story("FR-05: UI-created note data must be consistent in API")
+    @Severity(SeverityLevel.CRITICAL)
+    public void testUiAndApiNoteDataConsistency() {
+        String email       = ConfigReader.getEmail();
+        String password    = ConfigReader.getPassword();
+        String title       = "Consistency TC03 " + System.currentTimeMillis();
+        String description = "Data consistency check";
+        String category    = "Home";
+
+        // 1. UI: Login and create note
+        LoginPage loginPage = new LoginPage(driver);
+        loginPage.navigateToLogin();
+        loginPage.performLogin(email, password);
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        wait.until(ExpectedConditions.not(ExpectedConditions.urlContains("login")));
+
+        new DashboardPage(driver).createNote(category, title, description);
+        driver.navigate().refresh();
+
+        // 2. API: Find the note and compare all fields
+        NotesAPI notesAPI = new NotesAPI(email, password);
+        List<Map<String, Object>> allNotes = notesAPI.getAllNotes().jsonPath().getList("data");
+
+        Map<String, Object> apiNote = allNotes.stream()
+                .filter(n -> title.equals(n.get("title")))
+                .findFirst()
+                .orElse(null);
+
+        Assert.assertNotNull(apiNote,
+                "TC-E2E-03 FAILED: Note not found in API.");
+        Assert.assertEquals(apiNote.get("title"), title,
+                "TC-E2E-03 FAILED: Title mismatch between UI and API.");
+        Assert.assertEquals(apiNote.get("description"), description,
+                "TC-E2E-03 FAILED: Description mismatch between UI and API.");
+        Assert.assertEquals(apiNote.get("category"), category,
+                "TC-E2E-03 FAILED: Category mismatch between UI and API.");
+
+        // Cleanup
+        notesAPI.deleteNoteById((String) apiNote.get("id"));
     }
 }

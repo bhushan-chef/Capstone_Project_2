@@ -4,12 +4,25 @@
 
     <listeners>
         <listener class-name="com.expandtesting.utils.RetryListener"/>
+        <listener class-name="com.expandtesting.utils.ScreenshotListener"/>
     </listeners>
 
-    <test name="ExpandTesting E2E and UI Tests">
+    <test name="UI Tests">
         <packages>
             <package name="com.expandtesting.tests.ui"/>
+        </packages>
+    </test>
+
+    <test name="API Tests">
+        <packages>
+            <package name="com.expandtesting.tests.api"/>
+        </packages>
+    </test>
+
+    <test name="E2E Hybrid Tests">
+        <packages>
             <package name="com.expandtesting.tests.e2e"/>
         </packages>
     </test>
+
 </suite>
